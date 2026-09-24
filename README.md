@@ -19,9 +19,9 @@ This repository focuses on the distinction between:
 
 The effective sample size is
 
-\[
+$$
 \mathrm{ESS}(w)=\left(\sum_i w_i^2\right)^{-1}.
-\]
+$$
 
 The implementation includes:
 
