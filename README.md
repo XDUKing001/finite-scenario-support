@@ -1,172 +1,140 @@
 # Finite-Scenario Support for Rare-Event Probabilistic Forecasting
 
-This repository contains a lightweight implementation and paper-level
-reproduction package for the finite-scenario support analysis used in our
-ICASSP 2027 submission, *When More Samples Are Not Enough:
-Support-Adaptive Inference for Rare-Event Diffusion Forecasting*.
+A lightweight implementation and minimal reproduction package for finite-scenario support analysis in rare-event probabilistic forecasting.
 
-It is a compact scientific companion, not a full backbone-training release.
+The repository contains the core support-analysis code, candidate-acquisition procedure, and scripts for reproducing the main figures and table.
 
-## Motivation
+## Overview
 
-A forecaster can provide a target severe-event probability $q_X$, while its
-finite set of sampled future trajectories may contain too few event or
-non-event paths to represent that target without concentrating nearly all
-weight on a few samples. The probability target and the realized candidate
-support are different objects.
+A probabilistic forecaster may assign a rare-event probability `q_X`, while its finite trajectory pool contains too few event or non-event samples to represent that probability without excessive weight concentration.
 
-We measure weight concentration with effective sample size (ESS):
+This repository focuses on the distinction between:
 
-$$
-\mathrm{ESS}(w)=\left(\sum_i w_i^2\right)^{-1}.
-$$
+1. the target event probability; and
+2. the support available in the realized finite trajectory pool.
 
-For $n_E$ valid event paths and $n_N$ valid non-event paths, assigning event
-mass $q$ uniformly within each stratum gives
+The effective sample size (ESS) is
 
-$$
-\mathrm{ESS}(q)=
-\left(q^2/n_E+(1-q)^2/n_N\right)^{-1}.
-$$
+```text
+ESS(w) = 1 / Σ_i w_i²
+```
 
-Missing strata with positive target mass cannot be repaired by reweighting.
-Invalid physical paths receive zero final weight.
+The implementation includes:
 
-## Core idea
+- exact ESS-based support analysis;
+- a sufficient two-sided event/non-event quota;
+- KL event-mass reweighting;
+- same-source IID acquisition analysis;
+- residual candidate acquisition with nearest or random donor ordering.
 
-The exact ESS-feasible interval describes which event masses are representable
-at an ESS floor for a *fixed* pool. The two-sided operational quota requires
-$n_E\geq\lceil Kq-10^{-12}\rceil$ and
-$n_N\geq\lceil K(1-q)-10^{-12}\rceil$. This quota is sufficient, not
-necessary, for ESS at least $K$; it is not the feasible interval.
+## Repository structure
 
-When the quota fails, the paper first considers cumulative same-source IID
-acquisition. For the D3U route, a history-based alternative candidate source
-translates a training residual to the current point forecast:
-$Y_{\mathrm{cand}}=Y_{\mathrm{point,query}}+r_{\mathrm{train}}$.
-Only physically valid candidates enter the augmented pool. Candidate
-acquisition stops when both quota sides hold or the proposal budget is spent.
-Each proposal consumes budget before physical filtering. The public source
-offers stable Euclidean-nearest and seeded random donor orderings.
-
-Given sufficient support, minimum-KL event-mass transport places
-$q/n_E$ on every valid event trajectory and $(1-q)/n_N$ on every valid
-non-event trajectory. The generic function does not silently project an
-unrepresentable target. Scalar projection is provided separately for
-explicitly defined fallback policies.
-
-## What this release reproduces
-
-- Finite-pool ESS, exact feasible intervals, sufficient quotas, and KL weights.
-- A self-contained synthetic support and residual-acquisition example.
-- Paper Figure 2 from frozen aggregate support summaries.
-- Paper Figure 3 from frozen aggregate score and effort summaries.
-- Table I from its exact five-row score summary.
-- A compact nearest-versus-random donor-order control.
-
-The derived CSV files permit figure and table reproduction, not independent
-recalculation of the underlying experimental metrics. This release does **not**
-include D3U or TMDM training, diffusion trajectory generation, target-risk
-model fitting, donor-bank construction from raw data, or Kelmarsh SCADA
-preprocessing. It contains no checkpoints, trajectory tensors, or raw SCADA.
+```text
+finite-scenario-support/
+├── examples/
+│   └── minimal_demo.py
+├── paper_results/
+│   ├── fig2_support.csv
+│   ├── fig3_effort.csv
+│   ├── fig3_quality.csv
+│   ├── random_vs_nearest.csv
+│   └── table1.csv
+├── scripts/
+│   ├── reproduce_fig2.py
+│   ├── reproduce_fig3.py
+│   └── reproduce_table1.py
+├── src/
+│   ├── __init__.py
+│   ├── finite_support.py
+│   └── residual_acquisition.py
+├── LICENSE
+├── README.md
+└── requirements.txt
+```
 
 ## Quick start
 
-Python 3.10 or newer is recommended.
+Install the required packages:
 
-    python -m venv .venv
+```bash
+pip install -r requirements.txt
+```
 
-Activate with .venv\Scripts\activate on Windows or
-source .venv/bin/activate on Linux/macOS, then run:
+Run the minimal synthetic example:
 
-    pip install -r requirements.txt
-    python examples/minimal_demo.py
-    python scripts/reproduce_fig2.py
-    python scripts/reproduce_fig3.py
-    python scripts/reproduce_table1.py
+```bash
+python examples/minimal_demo.py
+```
 
-Figure outputs are written to outputs/ as vector PDF and 600-dpi PNG.
-The table script prints readable and LaTeX rows without editing a manuscript.
-The synthetic example does not need data files, model weights, or network
-access.
+Reproduce the main paper-level outputs:
 
-## Paper setting
+```bash
+python scripts/reproduce_fig2.py
+python scripts/reproduce_fig3.py
+python scripts/reproduce_table1.py
+```
 
-| Setting | Value |
-|---|---:|
-| Initial trajectories per case | 200 |
-| Maximum cumulative IID budget | 3,200 |
-| ESS floor $K$ | 10 |
-| Alternative-source proposal budget | 128 |
-| Forecast horizon | 6 × 10 min |
-| Rated power | 2,050 kW |
-| Severe-event threshold | 0.4259847508 p.u. |
+Generated figures are written to `outputs/`.
 
-The event severity uses the seven-point path from the last observed power
-value through the six forecast values. With power divided by rated capacity,
-it is the largest absolute increment over spans of 1, 2, 3, or 6 steps.
-The severe event occurs when this value reaches the threshold above.
-All empirical summaries refer to the paper's chronologically contiguous KWF1
-evaluation protocol. The IID route uses cumulative acquisition up to its
-maximum budget, stopping on support success and using the paper-defined
-fallback when necessary; it is
-**not** a uniform 3,200-trajectory pool for every case.
+## Main support results
 
-## Headline support results
-
-| Evaluation | Initial | Route endpoint |
+| Evaluation | Initial support | Final support |
 |---|---:|---:|
 | TMDM, same-source IID | 21.3% | 99.9% |
 | D3U, same-source IID | 11.9% | 12.6% |
 | D3U, alternative residual source | 11.9% | 99.70% |
 
-The D3U alternative-source endpoint is 14,676 / 14,720 cases.
-Figure 2's retrieval horizontal axis counts **attempted donor proposals**,
-including physically invalid proposals, not accepted trajectories. Its
-vertical axis uses overall test-case support success. The Figure 3 effort
-groups include all 12,964 retrieval-invoked cases, including unresolved
-attempts; the separate $q_X=0$ group has only four invoked cases.
-Group positions in that panel are categorical and labels show median $q_X$.
+These values correspond to the KWF1 protocol reported in the accompanying study.
 
-A donor-order control indicates that switching to the severe-residual
-candidate source accounts for most support recovery. History-based nearest
-ordering adds a smaller support gain and improves trajectory-level CRPS and
-Energy Score relative to random ordering. Random ordering has a slightly
-lower mean Brier score, so nearest ordering is chiefly a trajectory-quality
-refinement here, not a universally superior ordering.
+A donor-order control further indicates that switching the candidate source accounts for most of the D3U support recovery, while history-based nearest ordering mainly improves trajectory-level forecast quality.
 
-## Data and forecasting backbones
+## Reproduction scope
 
-The empirical setting uses 10-minute public SCADA data from Kelmarsh wind
-farm's Kelmarsh 1 turbine (Senvion MM92, 2,050 kW). The dataset is
-available from the [Zenodo v4 record cited by the paper](https://zenodo.org/records/16807551)
-(DOI: 10.5281/zenodo.16807551).
-Raw data are not redistributed here.
+This is a lightweight reproduction package.
 
-The paper evaluates two frozen probabilistic forecasting backbones: the
-Diffusion-based Decoupled Deterministic and Uncertain framework (D3U) and the
-Transformer-Modulated Diffusion Model (TMDM). Their training code, model
-weights, and checkpoints are not included.
-This repository focuses on downstream finite-scenario support analysis and
-paper-level derived results.
+It reproduces:
 
-ESS controls probability-weight concentration; it does not measure geometric
-diversity, statistical independence, or physical realism among trajectories.
-The empirical findings should not be generalized beyond the KWF1 protocol
-reported in the paper without additional evaluation. The chronological KWF1
-evaluation is treated as development evidence rather than as a fully untouched
-external confirmation set.
+- finite-support calculations;
+- ESS and quota examples;
+- the main support-recovery figure;
+- the forecast-quality and retrieval-effort figure;
+- the main results table;
+- a compact nearest-versus-random donor-order comparison.
+
+It does not include:
+
+- D3U or TMDM training code;
+- model checkpoints;
+- raw diffusion trajectory tensors;
+- target-probability model training;
+- raw Kelmarsh SCADA preprocessing.
+
+The released CSV files contain derived aggregate results used for paper-level figure and table reproduction.
+
+## Data
+
+The experiments use 10-minute public SCADA data from the Kelmarsh wind farm, with the KWF1 turbine corresponding to a Senvion MM92 unit rated at 2050 kW.
+
+Dataset:
+
+https://zenodo.org/records/16807551
+
+Raw SCADA data are not redistributed in this repository.
+
+## Notes
+
+ESS measures probability-weight concentration. It does not measure geometric trajectory diversity, statistical independence, or physical realism.
+
+The empirical results in this repository correspond to the KWF1 evaluation protocol and should not be interpreted as universal performance guarantees.
 
 ## Citation
 
-If you use this code, please cite the accompanying manuscript:
+If you use this repository, please cite the accompanying manuscript:
 
-Haonan Zhao, Jiangkun Tian, Jitao Shen, Jian Wu, and Jing Li,
-*When More Samples Are Not Enough: Support-Adaptive Inference for Rare-Event
-Diffusion Forecasting*, ICASSP 2027 submission, 2026.
+*When More Samples Are Not Enough: Support-Adaptive Inference for Rare-Event Diffusion Forecasting.*
 
-Final publication metadata will be updated after publication.
+Publication details will be updated after review.
 
 ## License
 
-The code in this repository is released under the MIT License.
+This repository is released under the MIT License.
